@@ -15,22 +15,28 @@ class Client:
         self.__thread.start()
 
     def __connection_thread(self):
-        try:
-            self.user.connect((self.HOST, self.PORT))
-            self.__connection_status = True
-        except ConnectionRefusedError:
-            print('No connection')
+        while not self.__connection_status:
+            try:
+                self.user.connect((self.HOST, self.PORT))
+                self.__connection_status = True
+                self.recv_message = 'Connected successfull'
+            except ConnectionRefusedError:
+                self.recv_message = 'Waiting for connection...'
 
     def disconnect(self):
         self.user.close()
         self.__connection_status = False
 
+    def is_connected(self):
+        return self.__connection_status
+
     def send_message(self, message):
         if self.__connection_status:
-            self.user.send(message.encode('utf-8'))
-            self.recv_message = self.user.recv(1024).decode('utf-8')
-        else:
-            print('client: no connection status')
+            try:
+                self.user.send(message.encode('utf-8'))
+                self.recv_message = self.user.recv(1024).decode('utf-8')
+            except ConnectionResetError:
+                print('Connection lost')
 
 
 if __name__ == '__main__':
