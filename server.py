@@ -1,16 +1,27 @@
 import socket
 import threading
-# from datetime import datetime
-import json
 
+import json
+import sys
 
 class Server:
-    def __init__(self, HOST, PORT):
-        self.HOST = HOST
-        self.PORT = PORT
+    """
+    Status codes:
+    1: registration
+    2: login
+        0 - success
+        1 - invalid login
+        2 - invalid pass
+    """
+
+
+    def __init__(self, host='127.0.0.1', port=12345):
+        self.HOST = host
+        self.PORT = port
         self.__starting = False
         self.user, self.addr = None, None
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # TCP
+
 
     def start(self):
         print('Server started')
@@ -26,76 +37,52 @@ class Server:
     def on_connect_listener(self):
         while self.__starting:
             self.user, self.addr = self.server.accept()
-            thread = threading.Thread(target=self.user_connect)
+            thread = threading.Thread(target=self.user_messaging)
             thread.start()
 
-    def user_connect(self):
+    def user_messaging(self):
         print(f'{self.addr} Successfully connected!')
 
-        self.send_message('Зарегистрироваться[0]\nВойти[1]\n')
-        reg_or_login = self.user.recv(512).decode('utf-8')
-
-        if reg_or_login == '0':
-            self.register()
-        elif reg_or_login == '1':
-            self.login()
-        else:
-            self.send_message('Неверное значение\n')
-
-    def login(self):
-        self.send_message('Введите логин -> ')
-        login = self.user.recv(64).decode('utf-8')
-        self.send_message('Введите пароль -> ')
-        password = self.user.recv(64).decode('utf-8')
-        with open('authorized.json', 'r') as f:
-            authorized_users = json.load(f)
-            if login in authorized_users:
-                if password == authorized_users[login]:
-                    self.send_message('Вы успешно зашли в аккаунт')
-                else:
-                    self.send_message('Неверный пароль')
+        while True:
+            status, login, password = self.user.recv(1024).decode('utf-8').split(':')
+            if status == 'LOGIN':
+                result_code = f'0:{self.check_login(login=login, password=password)}'
+            elif status == 'REGISTER':
+                result_code = f'1:{self.check_authorization(login=login, password=password)}'
             else:
-                self.send_message('Аккаунта не существует')
-
-    def register(self):
-        self.send_message('Введите желаемый логин -> ')
-        login = self.user.recv(64).decode('utf-8')
-
-        with open('authorized.json', 'r') as f:
-            authorized_users = json.load(f)
-
-        if login in authorized_users:
-            self.send_message('Этот аккаунт уже существует')
-        else:
-            self.send_message('Введите желаемый пароль -> ')
-            password = self.user.recv(64).decode('utf-8')
-
-            with open('authorized.json', 'w') as f:
-                authorized_users[login] = password
-                json.dump(authorized_users, f, indent=2)
-
-            self.send_message('Аккаунт успешно создан!')
+                result_code = 0
+            self.send_message(result_code)
 
     def send_message(self, message):
         self.user.send(message.encode('utf-8'))
 
+    @staticmethod
+    def check_login(login, password) -> int:
+        with open('base.json', 'r') as f:
+            authorized_users = json.load(f)
+            if login in authorized_users:
+                if password == authorized_users[login]:
+                    return 0  # success
+                else:
+                    return 2  # invalid pass
+            else:
+                return 1  # invalid login
+
+    @staticmethod
+    def check_authorization(login, password) -> int:
+        with open('base.json', 'r') as f:
+            authorized_users = json.load(f)
+
+        if login in authorized_users:
+            return 1  # invalid login
+        else:
+            with open('base.json', 'w') as f:
+                authorized_users[login] = password
+                json.dump(authorized_users, f, indent=2)
+            return 0  # success
+
+
 
 if __name__ == '__main__':
-    import time
-
-
-    def abc():
-        print('function!')
-
-
-    x = 0
-    point = 5
-    for _ in range(5):
-        while x < point:
-            x += 1
-            time.sleep(1)
-            print(x)
-        point += 5
-        abc()
-        print(point)
-        print(x)
+    server = Server('127.0.0.1', 12345)
+    server.start()
