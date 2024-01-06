@@ -1,5 +1,6 @@
 import socket
 import threading
+from uuid import uuid1
 
 
 class Client:
@@ -7,7 +8,8 @@ class Client:
         self.HOST = host
         self.PORT = port
         self.user = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.recv_message = None
+        self.NODE = uuid1().node
+        self.recv_message = ''
         self.__connection_status = False
         self.__thread = threading.Thread(target=self.__connection_thread, daemon=True)
 
@@ -36,6 +38,7 @@ class Client:
                 self.user.send(message.encode('utf-8'))
                 self.recv_message = self.user.recv(1024).decode('utf-8')
             except ConnectionResetError:
+                self.__connection_status = False
                 print('Connection lost')
 
 
